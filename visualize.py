@@ -12,6 +12,10 @@ from seq2seq import models, utils
 from seq2seq.data.dictionary import Dictionary
 from seq2seq.data.dataset import Seq2SeqDataset, BatchSampler
 
+from matplotlib.font_manager import FontProperties
+from matplotlib import rcParams
+
+
 
 def get_args():
     """ Defines training-specific hyper-parameters. """
@@ -30,7 +34,11 @@ def get_args():
 
 def main(args):
     """ Main function. Visualizes attention weight arrays as nifty heat-maps. """
-    mpl.rc('font', family='VL Gothic')
+    #mpl.rc('font', family='VL Gothic Regular')
+    mpl.font_manager._rebuild()
+    font_path = '/usr/share/fonts/truetype/vlgothic/VL-Gothic-Regular.ttf'
+    fp = FontProperties(fname=font_path, size=14)
+    rcParams['font.family'] = fp.get_name()
 
     torch.manual_seed(42)
     state_dict = torch.load(args.checkpoint_path, map_location=lambda s, l: default_restore_location(s, 'cpu'))
@@ -67,7 +75,7 @@ def main(args):
     for i, sample in enumerate(vis_loader):
         
         # Only visualize the first 10 sentence pairs
-        if i >= 10:
+        if i >= 35:
             break
         
         if args.cuda:
@@ -91,6 +99,7 @@ def main(args):
         # Convert indices into word tokens
         src_str = src_dict.string(src_ids).split(' ') + ['<EOS>']
         tgt_str = tgt_dict.string(tgt_ids).split(' ') + ['<EOS>']
+        print(src_str)
 
         # Generate heat-maps
         attn_map = attn_map.squeeze(dim=0).transpose(1, 0).detach().numpy()

@@ -83,6 +83,8 @@ def main(args):
             backoff_candidates = next_candidates[:, :, 1]
             next_words = torch.where(best_candidates == tgt_dict.unk_idx, backoff_candidates, best_candidates)
             prev_words = torch.cat([go_slice, next_words], dim=1)
+            new_words=torch.topk(decoder_out,10,dim=-1)
+            print(new_words)
 
         # Segment into sentences
         decoded_batch = next_words.numpy()

@@ -116,6 +116,7 @@ class LSTMEncoder(Seq2SeqEncoder):
         # Transpose batch: [batch_size, src_time_steps, num_features] -> [src_time_steps, batch_size, num_features]
         src_embeddings = _src_embeddings.transpose(0, 1)
 
+
         # Pack embedded tokens into a PackedSequence
         packed_source_embeddings = nn.utils.rnn.pack_padded_sequence(src_embeddings, src_lengths)
 
@@ -134,6 +135,7 @@ class LSTMEncoder(Seq2SeqEncoder):
         '''
         if self.bidirectional:
             def combine_directions(outs):
+                #[from 0: to outs.size(0):step by 2 ie alternate]
                 return torch.cat([outs[0: outs.size(0): 2], outs[1: outs.size(0): 2]], dim=2)
             final_hidden_states = combine_directions(final_hidden_states)
             final_cell_states = combine_directions(final_cell_states)
@@ -141,6 +143,7 @@ class LSTMEncoder(Seq2SeqEncoder):
 
         # Generate mask zeroing-out padded positions in encoder inputs
         src_mask = src_tokens.eq(self.dictionary.pad_idx)
+
         return {'src_embeddings': _src_embeddings.transpose(0, 1),
                 'src_out': (lstm_output, final_hidden_states, final_cell_states),
                 'src_mask': src_mask if src_mask.any() else None}
@@ -232,7 +235,9 @@ class LSTMDecoder(Seq2SeqDecoder):
         self.use_lexical_model = use_lexical_model
         if self.use_lexical_model:
             # __QUESTION: Add parts of decoder architecture corresponding to the LEXICAL MODEL here
-            pass
+            self.lexical_hidden=nn.Linear(embed_dim,embed_dim,bias=False)
+
+            self.lex_final=nn.Linear(embed_dim,len(dictionary))
             # TODO: --------------------------------------------------------------------- /CUT
 
     def forward(self, tgt_inputs, encoder_out, incremental_state=None):
@@ -278,7 +283,7 @@ class LSTMDecoder(Seq2SeqDecoder):
         # __QUESTION : Following code is to assist with the LEXICAL MODEL implementation
         # Cache lexical context vectors per translation time-step
         lexical_contexts = []
-
+        
         for j in range(tgt_time_steps):
             # Concatenate the current token embedding with output from previous time step (i.e. 'input feeding')
             lstm_input = torch.cat([tgt_embeddings[j, :, :], input_feed], dim=1)
@@ -298,18 +303,26 @@ class LSTMDecoder(Seq2SeqDecoder):
             '''
             if self.attention is None:
                 input_feed = tgt_hidden_states[-1]
+                
             else:
                 input_feed, step_attn_weights = self.attention(tgt_hidden_states[-1], src_out, src_mask)
+                
                 attn_weights[:, j, :] = step_attn_weights
+                
 
                 if self.use_lexical_model:
                     # __QUESTION: Compute and collect LEXICAL MODEL context vectors here
-                    # TODO: --------------------------------------------------------------------- CUT
-                    pass
-                    # TODO: --------------------------------------------------------------------- /CUT
+                    #print(sum(torch.bmm(step_attn_weights.transpose(0,1).unsqueeze(dim=1),src_embeddings).squeeze(dim=1)).shape)
+                    
+                    step_lex_context=F.tanh(sum(torch.bmm(step_attn_weights.transpose(0,1).unsqueeze(dim=1),src_embeddings).squeeze(dim=1)))
+                    
+                    lexical_contexts.append(step_lex_context)
+                
 
             input_feed = F.dropout(input_feed, p=self.dropout_out, training=self.training)
             rnn_outputs.append(input_feed)
+
+            
             '''___QUESTION-1-DESCRIBE-E-END___'''
 
         # Cache previous states (only used during incremental, auto-regressive generation)
@@ -318,17 +331,30 @@ class LSTMDecoder(Seq2SeqDecoder):
 
         # Collect outputs across time steps
         decoder_output = torch.cat(rnn_outputs, dim=0).view(tgt_time_steps, batch_size, self.hidden_size)
+        
 
         # Transpose batch back: [tgt_time_steps, batch_size, num_features] -> [batch_size, tgt_time_steps, num_features]
         decoder_output = decoder_output.transpose(0, 1)
 
         # Final projection
         decoder_output = self.final_projection(decoder_output)
-
+        
         if self.use_lexical_model:
             # __QUESTION: Incorporate the LEXICAL MODEL into the prediction of target tokens here
-            pass
-            # TODO: --------------------------------------------------------------------- /CUT
+            lex_hid_out=torch.cat(lexical_contexts, dim=0).view(tgt_time_steps, self.embed_dim)
+            #print(lex_hid_out.shape)
+            #lex_hid_out =F.tanh()
+            #print(lex_hid_out.shape)
+
+            lex_out=F.tanh(self.lexical_hidden(lex_hid_out))+lex_hid_out
+            #print((decoder_output+self.lex_final(lex_out)).shape)
+            #print((decoder_output+self.lex_final(lex_out)))
+            #print((decoder_output+self.lex_final(lex_out))[-1].shape)
+            #print((decoder_output+self.lex_final(lex_out))[-1])
+            
+            decoder_output=decoder_output+self.lex_final(lex_out)
+            #print(decoder_output.shape)
+            #lex_hid_out=F.softmx(decoder_output,lex_out)
 
         return decoder_output, attn_weights
 
