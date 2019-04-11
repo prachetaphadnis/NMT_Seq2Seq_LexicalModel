@@ -125,6 +125,15 @@ def main(args):
             '''
             ___QUESTION-1-DESCRIBE-F-START___
             Describe what the following lines of code do.
+
+            ANSWER F:
+            The first line invokes the model to run the encoder-decoder on the sampled inputs and reference outputs 
+            as per the batch size to generate the output predictions. The next line invokes the criterion to calculate the 
+            cross entropy loss on the training data. The loss.backward() accumulates the gradients over time for every parameter 
+            of the network. As these gradients are added over numerous time steps they tend to explode and hence we use grad norm 
+            to clip these gradients to the threshold (here 4). The optim.step() function applies these gradients to the network parameters 
+            to obtain the updated parameters. The optim.zero_grad_() clears the gradients (sets to zero) before the next batch starts. 
+
             '''
             output, _ = model(sample['src_tokens'], sample['src_lengths'], sample['tgt_inputs'])
             loss = \
