@@ -1,5 +1,7 @@
 # Neural Machine Translation
 
+**A full report of the task can be found in report.pdf
+
 This code implements a Sequence to Sequence Neural Machine Translation model based on [this paper](https://arxiv.org/pdf/1508.04025.pdf) by Luong et. al.
 - The NMT model used global attention with dropout and input feeding.
 - The model is also extended to implement the lexical model as per [this paper](https://arxiv.org/pdf/1710.01329.pdf)
